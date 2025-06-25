@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 if len(sys.argv) < 2:
-	raise ValueError("Usage: build_ROC_curve.py <flavor>")
+	raise ValueError("Usage: build_roc.py <flavor>")
 
 # Flavor to build the ROC curve of
 flavor = sys.argv[1]
@@ -129,6 +129,9 @@ with open(f"roc_curve_{flavor}.csv", "w") as ROCFile:
 	ROCFile.write("\"Tau Efficiency\", \"" + flavor.capitalize() +" Quark Misid.\" \n")
 	for xi, yi in zip(x, y):
 		ROCFile.write(f"{xi},{yi}\n")
+
+# Skip plotting, use draw_roc.py instead
+exit()
 
 print("Plotting ROC curve...")
 
