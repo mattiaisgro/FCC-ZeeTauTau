@@ -3,7 +3,7 @@
 # Author: Mattia Isgrò (mattia.isgro@cern.ch)
 #
 # You can run this script using (having setup  an FCCAnalyses environment):
-# fccanalysis run --nevents=10 treemaker/treemaker_Ztautau.py
+# fccanalysis run treemaker/treemaker_Ztautau_study.py
 
 import copy
 import os

@@ -45,14 +45,13 @@ plt.figure()
 for i in range(0, len(flavors)):
 	plt.plot(x_list[i], y_list[i], label=f"{flavors[i].capitalize()}")
 
-plt.xlabel("Tau Jet Efficiency")
+plt.xlabel("$\\tau$ Jet Efficiency")
 plt.xlim(0.94, 1.0)
-plt.ylabel("Quark Jet Misid.")
+plt.ylabel("$q$ Jet Misid.")
 plt.yscale("log")
-plt.yscale()
-plt.title("ROC Curve for Quark Jets vs Tau Jets (N > 10^3)")
+plt.ylim(1E-04, 1E-02)
+plt.title("ROC Curve for $q$ Jets vs $\\tau$ Jets (N > 10^6)")
 plt.legend()
-plt.grid(True)
 
 plt.savefig("roc_curve.png")
 plt.close()
@@ -62,7 +61,7 @@ print("Plotting efficiency and misid. curves...")
 cuts = np.linspace(0, 1, len(x_list[0]))
 
 plt.figure()
-plt.plot(cuts, x_list[0], label="Tau Jet Efficiency")
+plt.plot(cuts, x_list[0], label="$\\tau$ Jet Efficiency")
 
 for i in range(0, len(flavors)):
 	plt.plot(cuts, y_list[i], label=f"{flavors[i].capitalize()} Misid.")
@@ -70,7 +69,7 @@ for i in range(0, len(flavors)):
 plt.xlabel("Probability Threshold")
 plt.ylabel("Passing Score Ratio")
 plt.yscale("log")
-plt.title("Efficiency and Misid. for Tau Jets (N > 10^3)")
+plt.title("Efficiency and Misid. for $\\tau$ Jets (N > 10^6)")
 plt.legend()
 plt.grid(True)
 plt.savefig("efficiencies.png")

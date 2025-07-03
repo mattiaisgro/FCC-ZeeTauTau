@@ -1,10 +1,10 @@
 
 #
-# Study the tau flavor tagging efficiency on Z -> tau tau
+# Select Z -> tau tau events
 # Author: Mattia Isgrò (mattia.isgro@cern.ch)
 #
 # Test command:
-# fccanalysis run treemaker_Ztautau_efficiency.py
+# fccanalysis run treemaker_Ztautau_selection.py
 #
 
 from argparse import ArgumentParser
@@ -150,8 +150,8 @@ jetFlavourHelper = None
 jetClusteringHelper = None
 
 
-# Analysis class to work on the DataFrame
-class Analysis():
+# Analysis class used to apply the analysis and pick the outputs
+class Analysis:
 
     # Initialize the analysis class with run parameters
     def __init__(self, cmdline_args):
@@ -169,6 +169,22 @@ class Analysis():
                 'fraction': 1,
                 'chunks': 100,
             },
+            'p8_ee_Zud_ecm91': {
+                'fraction': 1,
+                'chunks': 400,
+            },
+            'p8_ee_Zcc_ecm91': {
+                'fraction': 1,
+                'chunks': 400,
+            },
+            'p8_ee_Zss_ecm91': {
+                'fraction': 1,
+                'chunks': 400,
+            },
+            'p8_ee_Zbb_ecm91': {
+                'fraction': 1,
+                'chunks': 400,
+            },
         }
 
         # Input directory where to find the samples
@@ -176,10 +192,10 @@ class Analysis():
 
         # Optional: output directory, default is local running directory
         username = getpass.getuser()
-        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/efficiency/{channel}"
+        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/selection/{channel}"
 
         # Title of the analysis
-        self.analysis_name = 'FCC-ee Z->tau tau tagger efficiency analysis'
+        self.analysis_name = 'Full analysis of Z decays for tau reconstruction'
 
         # Number of threads to run on
         self.n_threads = 4
@@ -188,21 +204,18 @@ class Analysis():
         self.run_batch = True
 
         # Whether to use weighted events
-        self.do_weighted = True
+        self.do_weighted = True 
 
         # Whether to read the input files with podio::DataSource
         self.use_data_source = False
 
 
-    # __________________________________________________________
     # Run the analysis and return the resulting DataFrame
-    def analyzers(self, dframe):
+    def analyzers(self, df):
 
-        df = dframe
         df = df.Alias("Muon0", "Muon#0.index")
         df = df.Alias("Electron0","Electron#0.index")
         df = df.Alias("Particle0","Particle#0.index")
-        df = df.Alias("MCParticles", "Particle")
 
 
         # Get all the leptons from the collection
@@ -232,7 +245,7 @@ class Analysis():
         )
 
 
-        # Select muons and electrons with an isolation cut
+        # Select muons and electrons with an isolation cut of 0df = df.25 in a separate column
         isolationThreshold = 0.30
 
         df = df.Define(
@@ -259,6 +272,56 @@ class Analysis():
         # Select events based on the number of isolated muons and electrons
         print("FILTER: Filtering events in channel '{}'".format(channel))
         df = remove_iso_leptons(df, channel)
+
+
+        # If the channel is not hadronic, define the kinematic variables for muons and electrons
+        if channel != "hadronic":
+
+            df = df.Define(
+                "muons_p", "FCCAnalyses::ReconstructedParticle::get_p(muons_sel_iso)"
+            )
+
+            df = df.Define(
+                "electrons_p", "FCCAnalyses::ReconstructedParticle::get_p(electrons_sel_iso)"
+            )
+
+            df = df.Define(
+                "muons_theta",
+                "FCCAnalyses::ReconstructedParticle::get_theta(muons_sel_iso)",
+            )
+
+            df = df.Define(
+                "muons_phi",
+                "FCCAnalyses::ReconstructedParticle::get_phi(muons_sel_iso)",
+            )
+
+            df = df.Define(
+                "muons_q",
+                "FCCAnalyses::ReconstructedParticle::get_charge(muons_sel_iso)",
+            )
+
+            df = df.Define(
+                "muons_n", "FCCAnalyses::ReconstructedParticle::get_n(muons_sel_iso)",
+            )
+
+            df = df.Define(
+                "electrons_theta",
+                "FCCAnalyses::ReconstructedParticle::get_theta(electrons_sel_iso)",
+            )
+
+            df = df.Define(
+                "electrons_phi",
+                "FCCAnalyses::ReconstructedParticle::get_phi(electrons_sel_iso)",
+            )
+            
+            df = df.Define(
+                "electrons_q",
+                "FCCAnalyses::ReconstructedParticle::get_charge(electrons_sel_iso)",
+            )
+            
+            df = df.Define(
+                "electrons_n", "FCCAnalyses::ReconstructedParticle::get_n(electrons_sel_iso)",
+            )
 
         
         # Cluster jets in the events, but first remove muons from the list of reconstructed particles
@@ -296,8 +359,6 @@ class Analysis():
         collections_noleps["PFParticles"] = "ReconstructedParticlesNoMuNoEl"
         
         jetMomentumThreshold = 3.0 # GeV
-
-        print("FILTER: Applying inclusive jet clustering with jet momentum threshold {} GeV".format(jetMomentumThreshold))
         jetClusteringHelper  = InclusiveJetClusteringHelper(
             collections_noleps["PFParticles"], 0.5, jetMomentumThreshold, "R5"
         )
@@ -322,8 +383,31 @@ class Analysis():
         )
 
         df = df.Define(
+            'lep_theta',
+            'muons_sel_iso.size() > 0 ? FCCAnalyses::ReconstructedParticle::get_theta(muons_sel_iso)[0] : (electrons_sel_iso.size() > 0 ? FCCAnalyses::ReconstructedParticle::get_theta(electrons_sel_iso)[0] : -999) '
+        )
+
+        df = df.Define(
+            'lep_phi',
+            'muons_sel_iso.size() > 0 ? FCCAnalyses::ReconstructedParticle::get_phi(muons_sel_iso)[0] : (electrons_sel_iso.size() > 0 ? FCCAnalyses::ReconstructedParticle::get_phi(electrons_sel_iso)[0] : -999) '
+        )
+
+        df = df.Define(
             "nlep",
             "electrons_sel_iso.size() + muons_sel_iso.size()"
+        )
+
+        df = df.Define(
+            "missing_p",
+            "FCCAnalyses::ReconstructedParticle::get_p(MissingET)[0]",
+        )
+        
+        df = df.Define(
+            'missing_p_theta', 'ReconstructedParticle::get_theta(MissingET)[0]',
+        )
+
+        df = df.Define(
+            'missing_p_phi', 'ReconstructedParticle::get_phi(MissingET)[0]',
         )
 
 
@@ -346,31 +430,34 @@ class Analysis():
         df = df.Define("jet1_phi", "jets_phi[0]")
         df = df.Define("jet2_phi", "jets_phi[1]")
 
-
-        # Filter events with exactly 2 jets
         print("FILTER: Filtering events with exactly 2 jets")
         df = df.Filter("jets_p.size() == 2")
 
-
         # Filter back-to-back events
-        back2backRTolerance = 0.1
+        back2backPhiTolerance = 0.3
 
         df = df.Define("jets_delta_phi", "std::abs(jet1_phi - jet2_phi)")
         df = df.Define("jets_delta_theta", "std::abs(jet1_theta - jet2_theta)")
-
         df = df.Define("jets_delta_r", "std::sqrt(jets_delta_phi * jets_delta_phi + jets_delta_theta * jets_delta_theta)")
-        print("FILTER: Filtering back-to-back events with delta R tolerance = {}".format(back2backRTolerance))
-        df = df.Filter("std::abs(jets_delta_r - 3.14) < {}".format(back2backRTolerance))
 
-
-        # Export the jet flavours
-        df = df.Define(
-            "jets_tau_matched",
-            "FCCAnalyses::ZTauTau::match_tau_flavor({}, Particle)".format(jetClusteringHelper.jets)
-        )
+        print("FILTER: Filtering back-to-back events with delta phi tolerance " + str(back2backPhiTolerance))
+        df = df.Filter(f"std::abs(jets_delta_phi - 3.14) < {back2backPhiTolerance}")
 
         # Tau jet score between 0 and 1
-        df = df.Alias("jets_tau_score", "recojet_isTAU_R5")
+        df = df.Define("jet1_tau_score", "recojet_isTAU_R5[0]")
+        df = df.Define("jet2_tau_score", "recojet_isTAU_R5[1]")
+
+        scoreThreshold = 0.97
+        print("FILTER: Filtering jets with tau score > {}".format(scoreThreshold))
+        df = df.Filter("jet1_tau_score > {} && jet2_tau_score > {}".format(scoreThreshold, scoreThreshold))
+
+        # Compute the invariant masses of the jets
+        df = df.Define("jets_mass", "FCCAnalyses::JetClusteringUtils::get_m({})".format(jetClusteringHelper.jets))
+        df = df.Define("jet1_mass", "jets_mass[0]")
+        df = df.Define("jet2_mass", "jets_mass[1]")
+
+        df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
+        df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
 
         return df
 
@@ -383,7 +470,10 @@ class Analysis():
         exportBranches = [
 
             # Lepton variables
-            "nlep", "lep_p",
+            "nlep", "lep_p", "lep_theta", "lep_phi",
+
+            # Missing energy
+            "missing_p", "missing_p_theta", "missing_p_phi",
 
             # Jet kinematics
             "jet1_p", "jet2_p",
@@ -392,7 +482,11 @@ class Analysis():
             "jets_delta_phi", "jets_delta_theta", "jets_delta_r",
 
             # Tau jet tags
-            "jets_tau_score",
+            "jet1_tau_score", "jet2_tau_score",
+
+            # Invariant mass
+            "jets_mass", "jet1_mass", "jet2_mass",
+            "jets_total_mass", "nprongs",
         ]
 
         print("Output branches = " + str(exportBranches))

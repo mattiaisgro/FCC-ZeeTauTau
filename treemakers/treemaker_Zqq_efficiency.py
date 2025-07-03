@@ -1,14 +1,17 @@
 
 #
 # Study the tau flavor tagging efficiency on Z -> qq
+# Author: Mattia Isgrò (mattia.isgro@cern.ch)
 #
 # Test command:
-# fccanalysis run --nevents=10 treemaker_Zqq_efficiency.py
+# fccanalysis run treemaker_Zqq_efficiency.py
+#
 
 from argparse import ArgumentParser
 import copy
 import os
 import urllib
+import getpass
 
 # Jet flavour tagging and clustering helpers
 from addons.ONNXRuntime.jetFlavourHelper import JetFlavourHelper
@@ -17,6 +20,10 @@ from addons.FastJet.jetClusteringHelper import InclusiveJetClusteringHelper
 
 global jetClusteringHelper
 global jetFlavourHelper
+
+
+# The quark flavor to consider ("light" for ud, "charm" for c, "strange" for s, "bottom" for b)
+flavor = "strange"
 
 
 # Get a file from a URL or local path.
@@ -57,8 +64,6 @@ def load_jet_model(model_name):
     return get_file_path(url_preproc, local_preproc), get_file_path(url_model, local_model)
 
 
-# The quark flavor to consider ("light" for ud, "charm" for c, "strange" for s, "bottom" for b)
-flavor = "charm"
 print("Quark Flavor = " + flavor)
 
 # The chosen decay of the Z boson
@@ -117,7 +122,7 @@ class Analysis():
         self.process_list = {
             "p8_ee_Z" + products +"_ecm91": {
                 "fraction": 1,
-                "chunk": 1,
+                "chunks": 800,
             },
         }
 
@@ -125,13 +130,14 @@ class Analysis():
         self.input_dir = "/eos/experiment/fcc/ee/generation/DelphesEvents/winter2023/IDEA/"
 
         # Optional: output directory, default is local running directory
-        self.output_dir = "outputs/treemaker/Zqq/{}".format(channel)
+        username = getpass.getuser()
+        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/efficiency/{channel}"
 
         # Title of the analysis
         self.analysis_name = "FCC-ee Z->" + products + " tagger efficiency analysis"
 
         # Number of threads to run on
-        self.n_threads = 8
+        self.n_threads = 4
 
         # Whether to run on Condor
         self.run_batch = True
@@ -139,7 +145,7 @@ class Analysis():
         # Whether to use weighted events
         self.do_weighted = True
 
-        # Whether to read the input files with podio::DataSource 
+        # Whether to read the input files with podio::DataSource
         self.use_data_source = False
 
 

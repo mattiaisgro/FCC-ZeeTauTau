@@ -1,17 +1,21 @@
 
 #
 # Compute the ROC curve, starting from two datasets
-# containing scores for true events and false events
+# containing scores for true events and false events,
+# using chunks instead of a single file.
 #
 
 import uproot
 import awkward
 import sys
 import numpy as np
+import os
 import matplotlib.pyplot as plt
+import concurrent.futures
+import getpass
 
 if len(sys.argv) < 2:
-	raise ValueError("Usage: build_ROC_curve.py <flavor>")
+	raise ValueError("Usage: build_roc_chunks.py <flavor>")
 
 # Flavor to build the ROC curve of
 flavor = sys.argv[1]
@@ -23,7 +27,10 @@ M = 1000
 trueBranch = "jets_tau_score"
 
 # Name of the branch containing false events
-falseBranch = "jets_" + flavor + "_tau_score"
+falseBranch = "jets_tau_score"
+
+# The maximum number of files to read
+maxFiles = 1
 
 
 products = ""
@@ -42,11 +49,25 @@ elif flavor == "bottom":
     products = "bb"
     flavorShortened = "b"
 
-tauFilename = "../outputs/treemaker/Ztautau/hadronic/p8_ee_Ztautau_ecm91.root"
-quarkFilename = "../outputs/treemaker/Zqq/hadronic/p8_ee_Z" + products + "_ecm91.root"
 
+# List the ROOT files inside a folder
+def get_root_files(folder):
+	files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".root")]
+	return files[:maxFiles]
 
-# Indices for scores
+# Load the scores from each file
+def load_scores(filename, branch_name):
+	try:
+		file = uproot.open(filename)
+		events = file["events;1"]
+		print("Branches: " + str(events.keys()))
+		branches = events.arrays([branch_name], how=dict)
+		scores = awkward.flatten(branches[branch_name])
+		return scores
+	except Exception as e:
+		print(f"Error reading {filename}: {e}")
+		return awkward.Array([])
+
 i_true = 0
 i_false = 0
 
@@ -71,6 +92,7 @@ def false_cut(false_scores, cut):
 
 	return len(false_scores) - i_false
 
+
 # Compute a single point of the ROC curve
 # from the scores and the cut
 def ROC_point(true_scores, false_scores, cut):
@@ -81,32 +103,37 @@ def ROC_point(true_scores, false_scores, cut):
 	return x , y
 
 
-# Load tau flavor scores
-tauFile = uproot.open(tauFilename)
-if not tauFile:
-	raise FileNotFoundError("The tau ROOT file could not be opened.")
+# Folders containing the ROOT files
+username = getpass.getuser()
+tauFolder = f"/eos/user/{username[0]}/{username}/Ztautau/efficiency/hadronic/p8_ee_Ztautau_ecm91/"
+quarkFolder = f"/eos/user/{username[0]}/{username}/Ztautau/efficiency/hadronic/p8_ee_Z" + products +"_ecm91/"
 
-print("Loading tau events tree...")
-tauEvents = tauFile["events;1"]
-tauBranches = tauEvents.arrays([
-	"jets_tau_score"
-], how=dict)
-tauScores = awkward.flatten(tauBranches["jets_tau_score"])
+# Get all ROOT files in the folders
+tauFiles = get_root_files(tauFolder)
+quarkFiles = get_root_files(quarkFolder)
+
+print(f"Found {len(tauFiles)} tau files and {len(quarkFiles)} quark files.")
+
+if len(tauFiles) == 0 or len(quarkFiles) == 0:
+	print("No ROOT files found!")
+	exit(1)
+
+# Load tau flavor scores in parallel
+print("Loading tau events from all files...")
+with concurrent.futures.ThreadPoolExecutor() as executor:
+	tauScoresList = list(executor.map(lambda f: load_scores(f, trueBranch), tauFiles))
+
+tauScores = awkward.flatten(tauScoresList)
 print("N_true = " + str(len(tauScores)))
 
+# Load quark flavor scores in parallel
+print("Loading quark events from all files...")
+with concurrent.futures.ThreadPoolExecutor() as executor:
+	quarkScoresList = list(executor.map(lambda f: load_scores(f, falseBranch), quarkFiles))
 
-# Load quark flavor scores
-quarkFile = uproot.open(quarkFilename)
-if not quarkFile:
-	raise FileNotFoundError("The tau ROOT file could not be opened.")
-
-print("Loading tau events tree...")
-quarkEvents = quarkFile["events;1"]
-quarkBranches = quarkEvents.arrays([
-	"jets_" + flavor + "_tau_score"
-], how=dict)
-quarkScores = awkward.flatten(quarkBranches["jets_" + flavor + "_tau_score"])
+quarkScores = awkward.flatten(quarkScoresList)
 print("N_false = " + str(len(quarkScores)))
+
 
 # Compute M points between 0 and 1
 cuts = np.linspace(0, 1, M)
@@ -149,8 +176,6 @@ plt.title("Tau Tagging Efficiency (N_true = " + str(len(tauScores)) + ")")
 plt.grid(True)
 plt.savefig("tau_efficiency.png")
 plt.close()
-
-exit()
 
 plt.figure(figsize=(10, 6))
 plt.plot(cuts, quarkMisid, label=flavor.capitalize() + "Quark Jet Misidentification")
