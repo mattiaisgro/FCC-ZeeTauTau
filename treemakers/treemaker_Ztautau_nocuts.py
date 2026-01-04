@@ -1,9 +1,9 @@
 
 #
-# Select Z -> tau tau events
+# Analysis of Z -> tau tau events for 3-prong decays
 #
 # Test command:
-# fccanalysis run --nevents=10 treemaker_Ztautau_selection.py
+# fccanalysis run treemaker_Ztautau_reconstruction.py
 
 from argparse import ArgumentParser
 import copy
@@ -56,25 +56,6 @@ def load_jet_model(model_name):
     url_model = "{}/{}.onnx".format(url_model_dir, model_name)
     
     return get_file_path(url_preproc, local_preproc), get_file_path(url_model, local_model)
-
-
-# Filter leptons based on the channel
-def remove_iso_leptons(df, channel):
-
-    if channel == "hadronic":
-        df = df.Filter(
-            "muons_sel_iso.size() + electrons_sel_iso.size() == 0"
-        )
-    elif  channel == "semihadronic":
-        df = df.Filter(
-            "muons_sel_iso.size() + electrons_sel_iso.size() == 1"
-        )
-    else:
-        df = df.Filter(
-            "muons_sel_iso.size() + electrons_sel_iso.size() == 2"
-        )
-
-    return df
 
 
 # Clean jets by removing those overlapping with leptons
@@ -167,22 +148,6 @@ class Analysis:
                 'fraction': 1,
                 'chunks': 1000,
             },
-            #'p8_ee_Zud_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zcc_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zss_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zbb_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
         }
 
         # Input directory where to find the samples
@@ -190,10 +155,10 @@ class Analysis:
 
         # Optional: output directory, default is local running directory
         username = getpass.getuser()
-        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/selection/{channel}"
+        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/reco_nocuts/{channel}"
 
         # Title of the analysis
-        self.analysis_name = 'Full analysis of Z decays for tau reconstruction'
+        self.analysis_name = 'Analysis and reconstruction of Z -> tau tau events'
 
         # Number of threads to run on
         self.n_threads = 4
@@ -229,8 +194,7 @@ class Analysis:
 
 
         # Remove unprompted leptons with a momentum threshold
-        leptonMomentumThreshold = 1.0  # GeV
-        print("FILTER: Filtering umprompted leptons with p > {} GeV".format(leptonMomentumThreshold))
+        leptonMomentumThreshold = 0.0  # GeV
 
         df = df.Define(
             "muons_sel",
@@ -243,7 +207,7 @@ class Analysis:
         )
 
 
-        # Select muons and electrons with an isolation cut of 0df = 0.3 in a separate column
+        # Select muons and electrons with an isolation cut of 0df = df.25 in a separate column
         isolationThreshold = 0.30
 
         df = df.Define(
@@ -268,8 +232,8 @@ class Analysis:
 
 
         # Select events based on the number of isolated muons and electrons
-        print("FILTER: Filtering events in channel '{}'".format(channel))
-        df = remove_iso_leptons(df, channel)
+        #print("FILTER: Filtering events in channel '{}'".format(channel))
+        #df = remove_iso_leptons(df, channel)
 
 
         # If the channel is not hadronic, define the kinematic variables for muons and electrons
@@ -410,55 +374,84 @@ class Analysis:
 
 
         # Clean jets to remove those overlapping with leptons
-        print("FILTER: Cleaning jets overlapping with leptons (deltaR_threshold = {})...".format(0.4))
-        df = clean_jets(df, jetClusteringHelper, deltaR_threshold=0.4)
+        #print("FILTER: Cleaning jets overlapping with leptons (deltaR_threshold = {})...".format(0.4))
+        #df = clean_jets(df, jetClusteringHelper, deltaR_threshold=0.4)
         # deltaR threshold of 0.4, following ATLAS
+        
+        df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
+        df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
 
         # Kinematic variables of jets (UNFILTERED)
-        #df = df.Define("jets_p", "JetClusteringUtils::get_p({})".format(jetClusteringHelper.jets))
-        #df = df.Define("jets_theta", "JetClusteringUtils::get_theta({})".format(jetClusteringHelper.jets))
-        #df = df.Define("jets_phi", "JetClusteringUtils::get_phi({})".format(jetClusteringHelper.jets))
+        df = df.Define("jets_p", "JetClusteringUtils::get_p({})".format(jetClusteringHelper.jets))
+        df = df.Define("jets_theta", "JetClusteringUtils::get_theta({})".format(jetClusteringHelper.jets))
+        df = df.Define("jets_phi", "JetClusteringUtils::get_phi({})".format(jetClusteringHelper.jets))
 
-        df = df.Define("jet1_p", "jets_p[0]")
-        df = df.Define("jet2_p", "jets_p[1]")
+        # Define number of jets
+        df = df.Define("njets", "jets_p.size()")
 
-        df = df.Define("jet1_theta", "jets_theta[0]")
-        df = df.Define("jet2_theta", "jets_theta[1]")
+        df = df.Define("jet1_p", "jets_p.size() > 0 ? jets_p[0] : -999")
+        df = df.Define("jet2_p", "jets_p.size() > 1 ? jets_p[1] : -999")
+        df = df.Define("jet3_p", "jets_p.size() > 2 ? jets_p[2] : -999")
+        df = df.Define("jet4_p", "jets_p.size() > 3 ? jets_p[3] : -999")
+        df = df.Define("jet5_p", "jets_p.size() > 4 ? jets_p[4] : -999")
 
-        df = df.Define("jet1_phi", "jets_phi[0]")
-        df = df.Define("jet2_phi", "jets_phi[1]")
+        df = df.Define("jet1_theta", "jets_theta.size() > 0 ? jets_theta[0] : -999")
+        df = df.Define("jet2_theta", "jets_theta.size() > 1 ? jets_theta[1] : -999")
+        df = df.Define("jet3_theta", "jets_theta.size() > 2 ? jets_theta[2] : -999")
+        df = df.Define("jet4_theta", "jets_theta.size() > 3 ? jets_theta[3] : -999")
+        df = df.Define("jet5_theta", "jets_theta.size() > 4 ? jets_theta[4] : -999")
 
-        print("FILTER: Filtering events with exactly 2 jets")
-        df = df.Filter("jets_p.size() == 2")
-
-        # Filter back-to-back events
-        back2backPhiTolerance = 0.3
+        df = df.Define("jet1_phi", "jets_phi.size() > 0 ? jets_phi[0] : -999")
+        df = df.Define("jet2_phi", "jets_phi.size() > 1 ? jets_phi[1] : -999")
+        df = df.Define("jet3_phi", "jets_phi.size() > 2 ? jets_phi[2] : -999")
+        df = df.Define("jet4_phi", "jets_phi.size() > 3 ? jets_phi[3] : -999")
+        df = df.Define("jet5_phi", "jets_phi.size() > 4 ? jets_phi[4] : -999")
 
         df = df.Define("jets_delta_phi", "std::abs(jet1_phi - jet2_phi)")
         df = df.Define("jets_delta_theta", "std::abs(jet1_theta - jet2_theta)")
         df = df.Define("jets_delta_r", "std::sqrt(jets_delta_phi * jets_delta_phi + jets_delta_theta * jets_delta_theta)")
 
-        print("FILTER: Filtering back-to-back events with delta phi tolerance " + str(back2backPhiTolerance))
-        df = df.Filter(f"std::abs(jets_delta_phi - 3.14) < {back2backPhiTolerance}")
-
         # Tau jet score between 0 and 1
-        df = df.Define("jet1_tau_score", "recojet_isTAU_R5[0]")
-        df = df.Define("jet2_tau_score", "recojet_isTAU_R5[1]")
-
-        #scoreThreshold = 0.97
-        print("FILTER: Filtering jets with tau score > {}".format(scoreThreshold))
-        df = df.Filter("jet1_tau_score > {} && jet2_tau_score > {}".format(scoreThreshold, scoreThreshold))
+        df = df.Define("jet1_tau_score", "jets_phi.size() > 0 ? recojet_isTAU_R5[0] : -999")
+        df = df.Define("jet2_tau_score", "jets_phi.size() > 1 ? recojet_isTAU_R5[1] : -999")
+        df = df.Define("jet3_tau_score", "jets_phi.size() > 2 ? recojet_isTAU_R5[2] : -999")
+        df = df.Define("jet4_tau_score", "jets_phi.size() > 3 ? recojet_isTAU_R5[3] : -999")
+        df = df.Define("jet5_tau_score", "jets_phi.size() > 4 ? recojet_isTAU_R5[4] : -999")
 
         # Compute the invariant masses of the jets
         df = df.Define("jets_mass", "FCCAnalyses::JetClusteringUtils::get_m({})".format(jetClusteringHelper.jets))
-        df = df.Define("jet1_mass", "jets_mass[0]")
-        df = df.Define("jet2_mass", "jets_mass[1]")
+        df = df.Define("jet1_mass", "jets_phi.size() > 0 ? jets_mass[0] : -999")
+        df = df.Define("jet2_mass", "jets_phi.size() > 1 ? jets_mass[1] : -999")
+        df = df.Define("jet3_mass", "jets_phi.size() > 2 ? jets_mass[2] : -999")
+        df = df.Define("jet4_mass", "jets_phi.size() > 3 ? jets_mass[3] : -999")
+        df = df.Define("jet5_mass", "jets_phi.size() > 4 ? jets_mass[4] : -999")
 
-        df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
-        df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
+        df = df.Define(
+            "jet1_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 0)".format(jetClusteringHelper.constituents)
+        )
+
+        df = df.Define(
+            "jet2_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 1)".format(jetClusteringHelper.constituents)
+        )
+
+        df = df.Define(
+            "jet3_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 2)".format(jetClusteringHelper.constituents)
+        )
+
+        df = df.Define(
+            "jet4_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 3)".format(jetClusteringHelper.constituents)
+        )
+
+        df = df.Define(
+            "jet5_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 4)".format(jetClusteringHelper.constituents)
+        )
 
         return df
-
 
 
     # Return the output branches of the analysis
@@ -470,21 +463,25 @@ class Analysis:
             # Lepton variables
             "nlep", "lep_p", "lep_theta", "lep_phi",
 
+            "electrons_isolation", "muons_isolation",
+
             # Missing energy
             "missing_p", "missing_p_theta", "missing_p_phi",
 
             # Jet kinematics
-            "jet1_p", "jet2_p",
+            "njets", "jet1_p", "jet2_p",
             "jet1_theta", "jet2_theta",
             "jet1_phi", "jet2_phi",
             "jets_delta_phi", "jets_delta_theta", "jets_delta_r",
 
             # Tau jet tags
-            #"jet1_tau_score", "jet2_tau_score",
+            "jet1_tau_score", "jet2_tau_score",
 
             # Invariant mass
             "jets_mass", "jet1_mass", "jet2_mass",
             "jets_total_mass", "nprongs",
+            
+            "jet1_total_charge", "jet2_total_charge",
         ]
 
         print("Output branches = " + str(exportBranches))

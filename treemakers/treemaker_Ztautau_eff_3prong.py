@@ -1,9 +1,9 @@
 
 #
-# Select Z -> tau tau events
+# Analysis of Z -> tau tau events for 3-prong reconstruction efficiency
 #
 # Test command:
-# fccanalysis run --nevents=10 treemaker_Ztautau_selection.py
+# fccanalysis run treemaker_Ztautau_selection.py
 
 from argparse import ArgumentParser
 import copy
@@ -165,21 +165,9 @@ class Analysis:
         self.process_list = {
             'p8_ee_Ztautau_ecm91': {
                 'fraction': 1,
-                'chunks': 1000,
+            #    'chunks': 100,
             },
             #'p8_ee_Zud_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zcc_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zss_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zbb_ecm91': {
             #    'fraction': 1,
             #    'chunks': 400,
             #},
@@ -190,16 +178,17 @@ class Analysis:
 
         # Optional: output directory, default is local running directory
         username = getpass.getuser()
-        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/selection/{channel}"
+        #self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/reco_eff/{channel}"
+        self.output_dir = "../outputs/treemaker/reco_eff/"
 
         # Title of the analysis
-        self.analysis_name = 'Full analysis of Z decays for tau reconstruction'
+        self.analysis_name = 'Analysis of Z -> tau tau events for 3-prong reconstruction efficiency'
 
         # Number of threads to run on
         self.n_threads = 4
 
         # Run on Condor
-        self.run_batch = True
+        self.run_batch = False
 
         # Whether to use weighted events
         self.do_weighted = True
@@ -243,7 +232,7 @@ class Analysis:
         )
 
 
-        # Select muons and electrons with an isolation cut of 0df = 0.3 in a separate column
+        # Select muons and electrons with an isolation cut of 0df = df.25 in a separate column
         isolationThreshold = 0.30
 
         df = df.Define(
@@ -445,7 +434,7 @@ class Analysis:
         df = df.Define("jet1_tau_score", "recojet_isTAU_R5[0]")
         df = df.Define("jet2_tau_score", "recojet_isTAU_R5[1]")
 
-        #scoreThreshold = 0.97
+        scoreThreshold = 0.97
         print("FILTER: Filtering jets with tau score > {}".format(scoreThreshold))
         df = df.Filter("jet1_tau_score > {} && jet2_tau_score > {}".format(scoreThreshold, scoreThreshold))
 
@@ -457,8 +446,18 @@ class Analysis:
         df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
         df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
 
-        return df
+        print("FILTER: Picking events with 3 prongs")
+        df = df.Filter("nprongs[0] == 3")
 
+        df = df.Define(
+            "jets_reco",
+            "FCCAnalyses::Taufunctions::findTauInJet_All({}, 0)".format(jetClusteringHelper.constituents)
+        )
+
+        print("FILTER: Filtering 3-prong events")
+        df = df.Filter("jets_reco[0].charge != 0")
+
+        return df
 
 
     # Return the output branches of the analysis
@@ -480,7 +479,7 @@ class Analysis:
             "jets_delta_phi", "jets_delta_theta", "jets_delta_r",
 
             # Tau jet tags
-            #"jet1_tau_score", "jet2_tau_score",
+            "jet1_tau_score", "jet2_tau_score",
 
             # Invariant mass
             "jets_mass", "jet1_mass", "jet2_mass",

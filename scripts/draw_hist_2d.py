@@ -90,8 +90,7 @@ def build_hist(files):
 files = get_file_list(inputFolder)
 hist2d = build_hist(files)
 
-# Draw and save with improved resolution and aesthetics
-# Create a canvas with higher resolution
+# Create a canvas with high resolution
 c = ROOT.TCanvas("c", "c", 1600, 1200)
 c.SetRightMargin(0.15)
 c.SetLeftMargin(0.12)

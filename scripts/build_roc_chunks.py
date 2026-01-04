@@ -5,6 +5,7 @@
 # using chunks instead of a single file.
 #
 
+import getpass
 import uproot
 import awkward
 import sys
@@ -12,7 +13,6 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 import concurrent.futures
-import getpass
 
 if len(sys.argv) < 2:
 	raise ValueError("Usage: build_roc_chunks.py <flavor>")
@@ -27,10 +27,10 @@ M = 1000
 trueBranch = "jets_tau_score"
 
 # Name of the branch containing false events
-falseBranch = "jets_tau_score"
+falseBranch = "jets_" + flavor + "_tau_score"
 
 # The maximum number of files to read
-maxFiles = 1
+maxFiles = 1000
 
 
 products = ""
@@ -52,6 +52,11 @@ elif flavor == "bottom":
 
 # List the ROOT files inside a folder
 def get_root_files(folder):
+	files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".root")]
+	return files[:10]
+
+# List the ROOT files inside a folder
+def get_root_files2(folder):
 	files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(".root")]
 	return files[:maxFiles]
 
@@ -100,7 +105,7 @@ def ROC_point(true_scores, false_scores, cut):
 	x = true_cut(true_scores, cut) / len(true_scores)
 	y = false_cut(false_scores, cut) / len(false_scores)
 
-	return x , y
+	return x, y
 
 
 # Folders containing the ROOT files
@@ -110,7 +115,7 @@ quarkFolder = f"/eos/user/{username[0]}/{username}/Ztautau/efficiency/hadronic/p
 
 # Get all ROOT files in the folders
 tauFiles = get_root_files(tauFolder)
-quarkFiles = get_root_files(quarkFolder)
+quarkFiles = get_root_files2(quarkFolder)
 
 print(f"Found {len(tauFiles)} tau files and {len(quarkFiles)} quark files.")
 

@@ -1,11 +1,9 @@
 
 #
 # Study the tau flavor tagging efficiency on Z -> tau tau
-# Author: Mattia Isgrò (mattia.isgro@cern.ch)
 #
 # Test command:
-# fccanalysis run treemaker_Ztautau_efficiency.py
-#
+# fccanalysis run --nevents=10 treemaker_Ztautau_efficiency.py
 
 from argparse import ArgumentParser
 import copy

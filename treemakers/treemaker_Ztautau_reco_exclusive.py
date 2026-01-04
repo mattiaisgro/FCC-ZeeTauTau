@@ -1,9 +1,9 @@
 
 #
-# Select Z -> tau tau events
+# Analysis of Z -> tau tau events for 3-prong reconstruction efficiency
 #
 # Test command:
-# fccanalysis run --nevents=10 treemaker_Ztautau_selection.py
+# fccanalysis run treemaker_Ztautau_selection.py
 
 from argparse import ArgumentParser
 import copy
@@ -13,7 +13,7 @@ import getpass
 
 # Jet flavour tagging and clustering helpers
 from addons.ONNXRuntime.jetFlavourHelper import JetFlavourHelper
-from addons.FastJet.jetClusteringHelper import InclusiveJetClusteringHelper
+from addons.FastJet.jetClusteringHelper import ExclusiveJetClusteringHelper
 
 
 global jetClusteringHelper
@@ -131,6 +131,9 @@ def clean_jets(df, jetClusteringHelper, deltaR_threshold=0.5):
 ecm       = 91
 print("Center of Mass Energy = " + str(ecm))
 
+# Number of prongs to select
+nprongs = 3
+
 
 # Channel to be reconstructed ("leptonic", "semihadronic", "hadronic")
 channel = "hadronic"
@@ -165,24 +168,40 @@ class Analysis:
         self.process_list = {
             'p8_ee_Ztautau_ecm91': {
                 'fraction': 1,
-                'chunks': 1000,
+                'chunks': 100,
             },
-            #'p8_ee_Zud_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zcc_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zss_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
-            #'p8_ee_Zbb_ecm91': {
-            #    'fraction': 1,
-            #    'chunks': 400,
-            #},
+            'p8_ee_Ztautau_Mtau_p0p1MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mtau_m0p1MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_0p1MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_1p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            "p8_ee_Ztautau_Mtau_m1p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_p1p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_m10p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_p10p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
         }
 
         # Input directory where to find the samples
@@ -190,10 +209,11 @@ class Analysis:
 
         # Optional: output directory, default is local running directory
         username = getpass.getuser()
-        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/selection/{channel}"
+        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/reco_exclusive/{channel}"
+        #self.output_dir = "../outputs/treemaker/reco_exclusive/"
 
         # Title of the analysis
-        self.analysis_name = 'Full analysis of Z decays for tau reconstruction'
+        self.analysis_name = 'Analysis of Z -> tau tau events for 3-prongs with exclusive clustering'
 
         # Number of threads to run on
         self.n_threads = 4
@@ -243,7 +263,7 @@ class Analysis:
         )
 
 
-        # Select muons and electrons with an isolation cut of 0df = 0.3 in a separate column
+        # Select muons and electrons with an isolation cut of 0df = df.25 in a separate column
         isolationThreshold = 0.30
 
         df = df.Define(
@@ -337,7 +357,7 @@ class Analysis:
 
         global jetClusteringHelper
         global jetFlavourHelper
-        
+
         # Define jet and run clustering parameters (names of collections in EDM root files)
         collections = {
             "GenParticles": "Particle",
@@ -355,21 +375,23 @@ class Analysis:
 
         collections_noleps = copy.deepcopy(collections)
         collections_noleps["PFParticles"] = "ReconstructedParticlesNoMuNoEl"
-        
+
         jetMomentumThreshold = 3.0 # GeV
-        jetClusteringHelper  = InclusiveJetClusteringHelper(
-            collections_noleps["PFParticles"], 0.5, jetMomentumThreshold, "R5"
+
+        # Use exclusive jet clustering with exactly 2 jets
+        jetClusteringHelper = ExclusiveJetClusteringHelper(
+        	collections_noleps["PFParticles"], 2, "R5"
         )
 
         df = jetClusteringHelper.define(df)
 
         jetFlavourHelper = JetFlavourHelper(
-            collections_noleps,
-            jetClusteringHelper.jets,
-            jetClusteringHelper.constituents,
-            "R5",
+			collections_noleps,
+			jetClusteringHelper.jets,
+			jetClusteringHelper.constituents,
+			"R5",
         )
-        
+
         df = jetFlavourHelper.define(df)
         df = jetFlavourHelper.inference(weaverPreproc, weaverModel, df)
 
@@ -428,24 +450,11 @@ class Analysis:
         df = df.Define("jet1_phi", "jets_phi[0]")
         df = df.Define("jet2_phi", "jets_phi[1]")
 
-        print("FILTER: Filtering events with exactly 2 jets")
-        df = df.Filter("jets_p.size() == 2")
-
-        # Filter back-to-back events
-        back2backPhiTolerance = 0.3
-
-        df = df.Define("jets_delta_phi", "std::abs(jet1_phi - jet2_phi)")
-        df = df.Define("jets_delta_theta", "std::abs(jet1_theta - jet2_theta)")
-        df = df.Define("jets_delta_r", "std::sqrt(jets_delta_phi * jets_delta_phi + jets_delta_theta * jets_delta_theta)")
-
-        print("FILTER: Filtering back-to-back events with delta phi tolerance " + str(back2backPhiTolerance))
-        df = df.Filter(f"std::abs(jets_delta_phi - 3.14) < {back2backPhiTolerance}")
-
         # Tau jet score between 0 and 1
         df = df.Define("jet1_tau_score", "recojet_isTAU_R5[0]")
         df = df.Define("jet2_tau_score", "recojet_isTAU_R5[1]")
 
-        #scoreThreshold = 0.97
+        scoreThreshold = 0.97
         print("FILTER: Filtering jets with tau score > {}".format(scoreThreshold))
         df = df.Filter("jet1_tau_score > {} && jet2_tau_score > {}".format(scoreThreshold, scoreThreshold))
 
@@ -457,8 +466,25 @@ class Analysis:
         df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
         df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
 
-        return df
+        print(f"FILTER: Picking events with {nprongs} prongs")
+        df = df.Filter(f"nprongs[0] == {nprongs}")
 
+        df = df.Define(
+            "jets_reco",
+            "FCCAnalyses::Taufunctions::findTauInJet_All({}, 0)".format(jetClusteringHelper.constituents)
+        )
+
+        df = df.Define("jets_reco_mass", "jets_reco[0].mass")
+
+        df = df.Define(
+            "jet1_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 0)".format(jetClusteringHelper.constituents)
+        )
+
+        print("FILTER: Filtering jets with total charge equal to +-1")
+        df = df.Filter("std::abs(jet1_total_charge) == 1")        
+
+        return df
 
 
     # Return the output branches of the analysis
@@ -477,14 +503,16 @@ class Analysis:
             "jet1_p", "jet2_p",
             "jet1_theta", "jet2_theta",
             "jet1_phi", "jet2_phi",
-            "jets_delta_phi", "jets_delta_theta", "jets_delta_r",
 
             # Tau jet tags
-            #"jet1_tau_score", "jet2_tau_score",
+            "jet1_tau_score", "jet2_tau_score",
 
             # Invariant mass
             "jets_mass", "jet1_mass", "jet2_mass",
             "jets_total_mass", "nprongs",
+
+            # Reconstructed values
+            "jets_reco_mass"
         ]
 
         print("Output branches = " + str(exportBranches))

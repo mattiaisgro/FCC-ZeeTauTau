@@ -7,7 +7,10 @@ import awkward
 
 
 # Name of the process under study
-process = "Ztautau/reconstruction"
+process = "Ztautau/reco_njets"
+
+# ID of the sample under study
+sampleId = "p8_ee_Ztautau_ecm91"
 
 # The channel to consider ("hadronic", "semihadronic", "leptonic")
 channel = "hadronic"
@@ -16,9 +19,10 @@ channel = "hadronic"
 branches = [
 	#"jet1_mass",
 	#"jet2_mass",
-	#"jets_total_mass",
+	"jets_total_mass",
 	#"nprongs",
-	"jet1_reco_mass",
+	#"jets_reco_mass",
+	#"njets",
 ]
 
 # Dictionary of plot titles, by branch name
@@ -27,22 +31,24 @@ title = {
 	"jet2_mass": "Jet Invariant Mass (GeV)",
 	"jets_total_mass": "Jets Total Invariant Mass (GeV)",
 	"nprongs": "Number of Prongs in 2-Jet Decays",
-	"jet1_reco_mass": "Reconstructed Jet Mass (GeV)",
+	"jets_reco_mass": "Reconstructed Jet Mass (GeV)",
+	"njets": "Number of Jets",
 }
 
 # Range of the variables in the histogram
 histRanges = {
-	"jet1_mass": (0, 10),
-	"jet2_mass": (0, 10),
+	"jet1_mass": (0.01, 2),
+	"jet2_mass": (0, 2),
 	"jets_total_mass": (0, 100),
 	"nprongs": (0, 6),
-	"jet1_reco_mass": (0, 2),
+	"jets_reco_mass": (0.01, 2),
+	"njets": (2.0, 8.0),
 }
 
 # List of signal directories
 localUsername = getpass.getuser()
 signalDirs = [
-	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Ztautau_ecm91/"
+	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/{sampleId}/"
 ]
 
 signalLabel = "Z #rightarrow #tau #tau"
@@ -50,17 +56,17 @@ signalScale = 1.0
 
 # List of background directories
 backgroundDirs = [
-#	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zud_ecm91/",
-#	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zcc_ecm91/",
-#	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zss_ecm91/",
-#	f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zbb_ecm91/",
+	#f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zud_ecm91/",
+	#f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zcc_ecm91/",
+	#f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zss_ecm91/",
+	#f"/eos/user/{localUsername[0]}/{localUsername}/{process}/{channel}/p8_ee_Zbb_ecm91/",
 ]
 
 backgroundLabel = "Z #rightarrow q #bar q"
 backgroundScale = 1.0
 
 # Plot output directory
-outputDir = "./plots/"
+outputDir = "./"
 
 # Number of bins for the histograms
 histBins = 100
@@ -210,6 +216,6 @@ for branch in branches:
 	legend.SetTextSize(0.035)
 	legend.Draw()
 
-	outputFile = f"{outputDir + process.replace('/', '_')}_{branch}.png"
+	outputFile = f"{outputDir + process.replace('/', '_')}_{branch}_{sampleId}.png"
 	canvas.SaveAs(outputFile)
 	print(f"Saved plot to {outputDir + outputFile}")

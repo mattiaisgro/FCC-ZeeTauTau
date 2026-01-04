@@ -1,11 +1,9 @@
 
 #
 # Study the tau flavor tagging efficiency on Z -> qq
-# Author: Mattia Isgrò (mattia.isgro@cern.ch)
 #
 # Test command:
-# fccanalysis run treemaker_Zqq_efficiency.py
-#
+# fccanalysis run --nevents=10 treemaker_Zqq_efficiency.py
 
 from argparse import ArgumentParser
 import copy
@@ -23,7 +21,7 @@ global jetFlavourHelper
 
 
 # The quark flavor to consider ("light" for ud, "charm" for c, "strange" for s, "bottom" for b)
-flavor = "strange"
+flavor = "charm"
 
 
 # Get a file from a URL or local path.
@@ -121,8 +119,8 @@ class Analysis():
         # List of processes
         self.process_list = {
             "p8_ee_Z" + products +"_ecm91": {
-                "fraction": 1,
-                "chunks": 800,
+                "fraction": 0.005,
+                "chunks": 100,
             },
         }
 

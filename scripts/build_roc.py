@@ -17,7 +17,7 @@ if len(sys.argv) < 2:
 flavor = sys.argv[1]
 
 # How many curve points to compute
-M = 1000
+M = 100000
 
 # Name of the branch containing true events
 trueBranch = "jets_tau_score"

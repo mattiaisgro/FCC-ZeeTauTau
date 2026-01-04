@@ -1,10 +1,9 @@
 
 #
-# Analysis of Z -> tau tau events for 3-prong reconstruction efficiency
-# Author: Mattia Isgrò (mattia.isgro@cern.ch)
+# Analysis of Z -> tau tau events for 3- and 5-prong decays
 #
 # Test command:
-# fccanalysis run treemaker_Ztautau_selection.py
+# fccanalysis run treemaker_Ztautau_reconstruction.py
 
 from argparse import ArgumentParser
 import copy
@@ -133,7 +132,7 @@ ecm       = 91
 print("Center of Mass Energy = " + str(ecm))
 
 # Number of prongs to select
-nprongs = 3
+nprongs = 5
 
 
 # Channel to be reconstructed ("leptonic", "semihadronic", "hadronic")
@@ -187,6 +186,50 @@ class Analysis:
                 'fraction': 1,
                 'chunks': 100,
             },
+            'p8_ee_Ztautau_Mnutau_5p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_10p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_50p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_100p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            'p8_ee_Ztautau_Mnutau_200p0MeV_ecm91': {
+                'fraction': 1,
+                'chunks': 100,
+            },
+            "p8_ee_Ztautau_Mtau_m1p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_p1p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_m5p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_p5p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_m10p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
+            "p8_ee_Ztautau_Mtau_p10p0MeV_ecm91": {
+                "fraction": 1,
+                "chunks": 100,
+            },
         }
 
         # Input directory where to find the samples
@@ -194,11 +237,10 @@ class Analysis:
 
         # Optional: output directory, default is local running directory
         username = getpass.getuser()
-        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/mass_sens/{channel}"
-        #self.output_dir = "../outputs/treemaker/mass_sens/"
+        self.output_dir = f"/eos/user/{username[0]}/{username}/Ztautau/sens_5prongs/{channel}"
 
         # Title of the analysis
-        self.analysis_name = 'Reconstruction of Z -> tau tau events with 3-prongs'
+        self.analysis_name = 'Analysis and reconstruction of Z -> tau tau events'
 
         # Number of threads to run on
         self.n_threads = 4
@@ -419,6 +461,12 @@ class Analysis:
         df = clean_jets(df, jetClusteringHelper, deltaR_threshold=0.4)
         # deltaR threshold of 0.4, following ATLAS
 
+        # Define number of jets
+        df = df.Define("njets", "jets_p.size()")
+        
+        df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
+        df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
+
         # Kinematic variables of jets (UNFILTERED)
         #df = df.Define("jets_p", "JetClusteringUtils::get_p({})".format(jetClusteringHelper.jets))
         #df = df.Define("jets_theta", "JetClusteringUtils::get_theta({})".format(jetClusteringHelper.jets))
@@ -434,7 +482,7 @@ class Analysis:
         df = df.Define("jet2_phi", "jets_phi[1]")
 
         print("FILTER: Filtering events with exactly 2 jets")
-        df = df.Filter("jets_p.size() == 2")
+        df = df.Filter("njets == 2")
 
         # Filter back-to-back events
         back2backPhiTolerance = 0.3
@@ -459,24 +507,31 @@ class Analysis:
         df = df.Define("jet1_mass", "jets_mass[0]")
         df = df.Define("jet2_mass", "jets_mass[1]")
 
-        df = df.Define("jets_total_mass", "FCCAnalyses::ZTauTau::get_jets_total_m({})".format(jetClusteringHelper.jets))
-        df = df.Define("nprongs", "FCCAnalyses::ZTauTau::get_nprongs({})".format(jetClusteringHelper.constituents))
+        if nprongs >= 0:
+            print(f"FILTER: Picking events with {nprongs} prongs")
+            df = df.Filter(f"nprongs[0] == {nprongs}")
 
-        print(f"FILTER: Picking events with {nprongs} prongs")
-        df = df.Filter(f"nprongs[0] == {nprongs}")
+        #df = df.Define(
+        #    "jets_reco",
+        #    "FCCAnalyses::Taufunctions::findTauInJet_All({}, 0)".format(jetClusteringHelper.constituents)
+        #)
+
+        #df = df.Define("jets_reco_mass", "jets_reco[0].mass")
 
         df = df.Define(
-            "jets_reco",
-            "FCCAnalyses::Taufunctions::findTauInJet_All({}, 0)".format(jetClusteringHelper.constituents)
+            "jet1_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 0)".format(jetClusteringHelper.constituents)
         )
 
-        # Improve the statistic by selecting at least one successful reconstruction per event,
-        # with an additional shuffling between 
-        df = df.Define("jets_reco_good", "FCCAnalyses::ZTauTau::get_reco_tau(jets_reco)")
-        df = df.Define("jets_reco_mass", "jets_reco_good.mass")
+        df = df.Define(
+            "jet2_total_charge",
+            "FCCAnalyses::ZTauTau::get_jet_total_charge({}, 1)".format(jetClusteringHelper.constituents)
+        )
 
-        print("FILTER: Selecting successfully reconstructed taus")
-        df = df.Filter("jets_reco_mass != 0")
+        print("FILTER: Filtering neutral events over jets")
+        df = df.Filter("jet1_total_charge == 1 || jet1_total_charge == -1")
+        df = df.Filter("jet2_total_charge == 1 || jet2_total_charge == -1")
+        df = df.Filter("jet1_total_charge + jet2_total_charge == 0")
 
         return df
 
@@ -488,7 +543,7 @@ class Analysis:
         exportBranches = [
 
             # Lepton variables
-            "nlep", "lep_p", "lep_theta", "lep_phi",
+            "nlep", "lep_p", "lep_theta", "lep_phi", "njets",
 
             # Missing energy
             "missing_p", "missing_p_theta", "missing_p_phi",
@@ -505,9 +560,8 @@ class Analysis:
             # Invariant mass
             "jets_mass", "jet1_mass", "jet2_mass",
             "jets_total_mass", "nprongs",
-
-            # Reconstructed values
-            "jets_reco_mass"
+            
+            "jet1_total_charge", "jet2_total_charge",
         ]
 
         print("Output branches = " + str(exportBranches))

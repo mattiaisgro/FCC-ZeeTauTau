@@ -1,9 +1,9 @@
 
 #
-# Author: Mattia Isgrò (mattia.isgro@cern.ch)
+# Study Z -> tau tau events, matching with MC particles
 #
-# You can run this script using (having setup  an FCCAnalyses environment):
-# fccanalysis run treemaker/treemaker_Ztautau_study.py
+# Test command:
+# fccanalysis run --nevents=10 treemaker_Ztautau_study.py
 
 import copy
 import os
@@ -12,9 +12,10 @@ import urllib
 # Jet flavour tagging and clustering helpers
 from addons.ONNXRuntime.jetFlavourHelper import JetFlavourHelper
 from addons.FastJet.jetClusteringHelper import InclusiveJetClusteringHelper
+import random
 
 # Include C++ headers
-includePaths = ["../src/ZTauTau.h", "../src/ConeIsolation.h", "../src/TruthMatching.h"]
+includePaths = ["../src/ztautau.h", "../src/cone_isolation.h", "../src/truth_matching.h"]
 
 
 global jetClusteringHelper
@@ -213,7 +214,7 @@ class RDFanalysis:
 
 
         # Remove unprompted leptons with a momentum threshold
-        leptonMomentumThreshold = 12.0  # GeV
+        leptonMomentumThreshold = 1.0  # GeV
         print("FILTER: Filtering umprompted leptons with p > {} GeV".format(leptonMomentumThreshold))
 
         df = df.Define(
@@ -227,25 +228,27 @@ class RDFanalysis:
         )
 
 
-        # Select muons and electrons with an isolation cut
+        # Select muons and electrons with an isolation cut of 0df = df.25 in a separate column
+        isolationThreshold = 0.30
+
         df = df.Define(
             "muons_isolation",
-            "FCCAnalyses::ZTauTau::coneIsolation(0.01, 0.3)(muons_sel, ReconstructedParticles)",
+            "FCCAnalyses::ConeIsolation::coneIsolation(0.01, 0.3)(muons_sel, ReconstructedParticles)",
         )
 
         df = df.Define(
             "electrons_isolation",
-            "FCCAnalyses::ZTauTau::coneIsolation(0.01, 0.3)(electrons_sel, ReconstructedParticles)",
+            "FCCAnalyses::ConeIsolation::coneIsolation(0.01, 0.3)(electrons_sel, ReconstructedParticles)",
         )
 
         df = df.Define(
             "muons_sel_iso",
-            "FCCAnalyses::ZTauTau::sel_iso(0.30)(muons_sel, muons_isolation)",
+            "FCCAnalyses::ConeIsolation::sel_iso({})(muons_sel, muons_isolation)".format(isolationThreshold),
         )
 
         df = df.Define(
             "electrons_sel_iso",
-            "FCCAnalyses::ZTauTau::sel_iso(0.30)(electrons_sel, electrons_isolation)",
+            "FCCAnalyses::ConeIsolation::sel_iso({})(electrons_sel, electrons_isolation)".format(isolationThreshold),
         )
 
 
@@ -338,8 +341,9 @@ class RDFanalysis:
         collections_noleps = copy.deepcopy(collections)
         collections_noleps["PFParticles"] = "ReconstructedParticlesNoMuNoEl"
         
+        jetMomentumThreshold = 3.0 # GeV
         jetClusteringHelper  = InclusiveJetClusteringHelper(
-            collections_noleps["PFParticles"], 0.5, 5, "R5"
+            collections_noleps["PFParticles"], 0.5, jetMomentumThreshold, "R5"
         )
 
         df = jetClusteringHelper.define(df)
@@ -433,9 +437,19 @@ class RDFanalysis:
         df = df.Filter("njets == {}".format(nJets))
 
 
-        # Define individual jet kinematic variables
-        df = df.Define("jet1_p", "jets_p[0]")
-        df = df.Define("jet2_p", "jets_p[1]")
+        # Shuffle jet1 and jet2 to remove selection bias
+        # related to momentum-based ordering of jets
+        df = df.Define(
+            "jet1_p_shuffled",
+            "gRandom->Rndm() < 0.5 ? jets_p[0] : jets_p[1]"
+        )
+        df = df.Define(
+            "jet2_p_shuffled",
+            "gRandom->Rndm() < 0.5 ? jets_p[1] : jets_p[0]"
+        )
+
+        df = df.Define("jet1_p", "jets_p_shuffled[0]")
+        df = df.Define("jet2_p", "jets_p_shuffled[1]")
 
 
         # Tag jets assuming 100% efficiency
@@ -444,7 +458,7 @@ class RDFanalysis:
         # True Tags
         df = df.Define("jets_ttagged_true", "JetTaggingUtils::sel_tag(true)(jets_tautag_true,{})".format(jetClusteringHelper.jets))
 
-        # Jet Counts: Count number of jets of each flavor
+        # Count number of true jets
         df = df.Define("jets_tau_true_number", "return int(jets_ttagged_true.size())")
 
         print("FILTER: Filtering events with 2 true tau jets")
@@ -454,7 +468,7 @@ class RDFanalysis:
         df = df.Define("jet1_tau_score", "recojet_isTAU_R5[0]")
         df = df.Define("jet2_tau_score", "recojet_isTAU_R5[1]")
 
-        scoreThreshold = 0.95
+        scoreThreshold = 0.99
         print("FILTER: Filtering jets with tau score > {}".format(scoreThreshold))
         df = df.Filter("jet1_tau_score > {} && jet2_tau_score > {}".format(scoreThreshold, scoreThreshold))
 
